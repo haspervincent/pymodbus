@@ -12,6 +12,14 @@ def main():
             print("Status: \033[92mConnected\033[0m")
 
             while 1:
+                # r_int = random.randint(0, 9)
+                # r_bool = True if random.randint(0, 1) == 1 else False
+                # client.write_single_coil(r_int, r_bool)
+
+                r_int1 = random.randint(0, 9)
+                r_int2 = random.randint(0, 9) # up to 16-bit (0-65535)
+                client.write_single_register(r_int1, r_int2)
+                
                 # di = client.read_discrete_inputs(0, 100)
                 # co = client.read_coils(0, 100) 
                 # ir = client.read_input_registers(0, 100)
@@ -21,14 +29,6 @@ def main():
                 # print(f"co: {co[:10]}")
                 # print(f"ir: {ir[:10]}")
                 print(f"hr: {hr[:10]}")
-
-                # r_int = random.randint(0, 9)
-                # r_bool = True if random.randint(0, 1) == 1 else False
-                # client.write_single_coil(r_int, r_bool)
-
-                r_int1 = random.randint(0, 9)
-                r_int2 = random.randint(0, 9) # up to 16-bit (0-65535)
-                client.write_single_register(r_int1, r_int2)
                 
                 time.sleep(5)
 
