@@ -4,8 +4,8 @@ from epyt import epanet
 def main():
     """Runs a hydraulic simulation."""
     d = epanet('net1.inp')
-    d.setTimeSimulationDuration(64 * 20) # 24 * 60 * 60
-    d.setTimeHydraulicStep(64 * 10)
+    d.setTimeSimulationDuration(60 * 20) # 24 * 60 * 60
+    d.setTimeHydraulicStep(60 * 10)
     
     try:
         d.openHydraulicAnalysis()
