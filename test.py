@@ -4,8 +4,8 @@ from epyt import epanet
 def main():
     """Runs a hydraulic simulation."""
     d = epanet('net1.inp')
-    d.setTimeSimulationDuration(10)
-    d.setTimeHydraulicStep(1)
+    d.setTimeSimulationDuration(64 * 20) # 24 * 60 * 60
+    d.setTimeHydraulicStep(64 * 10)
     
     try:
         d.openHydraulicAnalysis()
@@ -16,12 +16,20 @@ def main():
             x = d.getTimeSimulationDuration() + d.getTimeHydraulicStep()
             d.setTimeSimulationDuration(x)
             
-            tstep = d.runHydraulicAnalysis()
+            d.runHydraulicAnalysis()
+
+            # tstep = d.runHydraulicAnalysis()
+            # print(tstep, end=' ')
             
             # if tstep >= d.getTimeSimulationDuration():
-            #     break
+            #     break 
 
-            print(tstep, [d.getNodeHydraulicHead(i) for i in d.getNodeTankIndex()])
+            # NODES : (JUNCTIONS, RESERVOIRS, TANKS)
+            tank_values = {i: d.getNodeHydraulicHead(d.getNodeIndex(i)) for i in d.getNodeTankNameID()}
+            print(tank_values)
+
+            # LINKS : (PIPES, PUMPS, VALVES)
+
 
             d.nextHydraulicAnalysisStep()
 
