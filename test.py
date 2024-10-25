@@ -8,7 +8,7 @@ class Epanet(epanet):
     """This class extends the existing 'epanet' class with additional functionality
     to get the relevant node and link values.
     """    
-    def get_node_values(self):
+    def get_node_values(self) -> dict:
         node_values = {}
 
         for name_id in self.getNodeNameID():
@@ -27,7 +27,7 @@ class Epanet(epanet):
 
         return node_values
 
-    def get_link_values(self):
+    def get_link_values(self) -> dict:
         link_values = {}
 
         for name_id in self.getLinkNameID():
@@ -43,7 +43,7 @@ class Epanet(epanet):
 
         return link_values
     
-    def get_node_values_modbus(self):
+    def get_node_values_modbus(self) -> list[float]:
         node_values_modbus = []
 
         for name_id in self.getNodeNameID():
@@ -66,7 +66,7 @@ class Epanet(epanet):
 
         return node_values_modbus
 
-    def get_link_values_modbus(self):
+    def get_link_values_modbus(self) -> list:
         link_values_modbus = []
 
         for name_id in self.getLinkNameID():
@@ -90,30 +90,27 @@ class ModbusClient(ModbusTcpClient):
     for reading and writing float values.
     """
     class ModbusFloatResponse:
-        def __init__(self, floats: list[float]):
+        def __init__(self, floats: list[float]) -> None:
             self.floats = floats
         
-        def __getitem__(self, index: int):
+        def __getitem__(self, index: int) -> float:
             return self.floats[index]
 
-        def __len__(self):
+        def __len__(self) -> int:
             return len(self.floats)
 
-    def read_floats(self, address: int, count: int = 1, slave: int = 1):
-        """Read float values from the specified address."""
+    def read_floats(self, address: int, count: int = 1, slave: int = 1) -> ModbusFloatResponse:
         result = self.read_holding_registers(address, count * 2, slave=slave)
         decoder = BinaryPayloadDecoder.fromRegisters(result.registers, byteorder=Endian.BIG, wordorder=Endian.LITTLE)
         return self.ModbusFloatResponse([decoder.decode_32bit_float() for _ in range(count)])
 
-    def write_float(self, address: int, value: float, slave: int = 1):
-        """Write a single float value to the specified address."""
+    def write_float(self, address: int, value: float, slave: int = 1) -> None:
         builder = BinaryPayloadBuilder(byteorder=Endian.BIG, wordorder=Endian.LITTLE)
         builder.add_32bit_float(value)
-        registers = builder.to_registers()
-        self.write_registers(address, registers, slave=slave)
+        register = builder.to_registers()
+        self.write_registers(address, register, slave=slave)
 
-    def write_floats(self, address: int, values: list[float], slave: int = 1):
-        """Write multiple float values starting from the specified address."""
+    def write_floats(self, address: int, values: list[float], slave: int = 1) -> None:
         builder = BinaryPayloadBuilder(byteorder=Endian.BIG, wordorder=Endian.LITTLE)
         for value in values:
             builder.add_32bit_float(value)
