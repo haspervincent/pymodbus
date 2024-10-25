@@ -1,82 +1,121 @@
-import time
 from epyt import epanet
 
+from pymodbus.client import ModbusTcpClient
+from pymodbus.payload import BinaryPayloadDecoder, BinaryPayloadBuilder
+from pymodbus.constants import Endian
+
 class Epanet(epanet):
-    """This class extends the existing epanet class with additional functionality.
+    """This class extends the existing 'epanet' class with additional functionality
+    to get the relevant node and link values.
     """    
     def get_node_values(self):
-        node_values = {
-            name_id: {
-                'type': self.getNodeType(self.getNodeIndex(name_id)),
-                'pressure': round(self.getNodePressure(self.getNodeIndex(name_id)), 5),
-                'head': round(self.getNodeHydraulicHead(self.getNodeIndex(name_id)), 5),
+        node_values = {}
+
+        for name_id in self.getNodeNameID():
+            node_index = self.getNodeIndex(name_id)
+            node_type = self.getNodeType(node_index)
+
+            node_values[name_id] = {
+                'type': node_type,
+                'pressure': round(self.getNodePressure(node_index), 5),
+                'head': round(self.getNodeHydraulicHead(node_index), 5),
                 **({
-                    'min_level': float(self.getNodeTankMinimumWaterLevel(self.getNodeIndex(name_id))),
-                    'max_level': float(self.getNodeTankMaximumWaterLevel(self.getNodeIndex(name_id)))
-                } if self.getNodeType(self.getNodeIndex(name_id)) == 'TANK' else {})
+                    'min_level': float(self.getNodeTankMinimumWaterLevel(node_index)),
+                    'max_level': float(self.getNodeTankMaximumWaterLevel(node_index))
+                } if node_type == 'TANK' else {})
             }
-            for name_id in self.getNodeNameID()
-        }
+
         return node_values
 
     def get_link_values(self):
-        link_values = {
-            name_id: {
-                'type': self.getLinkType(self.getLinkIndex(name_id)),
-                **({
-                    'status': int(self.getLinkStatus(self.getLinkIndex(name_id)))
-                } if self.getLinkType(self.getLinkIndex(name_id)) == 'PIPE' else {}),
-                **({
-                    'power': self.getLinkPumpPower(self.getLinkIndex(name_id))
-                } if self.getLinkType(self.getLinkIndex(name_id)) == 'PUMP' else {}),
-                **({
-                    'setting': self.getLinkSettings(self.getLinkIndex(name_id))
-                } if self.getLinkType(self.getLinkIndex(name_id)) == 'VALVE' else {})
+        link_values = {}
+
+        for name_id in self.getLinkNameID():
+            link_index = self.getLinkIndex(name_id)
+            link_type = self.getLinkType(link_index)
+
+            link_values[name_id] = {
+                'type': link_type,
+                **({'status': self.getLinkStatus(link_index)} if link_type == 'PIPE' else {}),
+                **({'power': self.getLinkPumpPower(link_index)} if link_type == 'PUMP' else {}),
+                **({'setting': self.getLinkSettings(link_index)} if link_type == 'VALVE' else {})
             }
-            for name_id in self.getLinkNameID()
-        }
+
         return link_values
+    
+    def get_node_values_modbus(self):
+        node_values_modbus = []
 
-def main():
-    """Runs a hydraulic simulation.
+        for name_id in self.getNodeNameID():
+            node_index = self.getNodeIndex(name_id)
+            node_type = self.getNodeType(node_index)
+
+            node_values_modbus.extend([
+                round(self.getNodePressure(node_index), 5),
+                round(self.getNodeHydraulicHead(node_index), 5)
+            ])
+
+            match node_type:
+                case 'TANK':
+                    node_values_modbus.extend([
+                        float(self.getNodeTankMinimumWaterLevel(node_index)),
+                        float(self.getNodeTankMaximumWaterLevel(node_index))
+                    ])
+                case _:
+                    pass
+
+        return node_values_modbus
+
+    def get_link_values_modbus(self):
+        link_values_modbus = []
+
+        for name_id in self.getLinkNameID():
+            link_index = self.getLinkIndex(name_id)
+            link_type = self.getLinkType(link_index)
+
+            match link_type:
+                case 'PIPE':
+                    link_values_modbus.extend(int(self.getLinkStatus(link_index)))
+                case 'PUMP':
+                    link_values_modbus.extend(self.getLinkPumpPower(link_index))
+                case 'VALVE':
+                    link_values_modbus.extend(self.getLinkSettings(link_index))
+                case _:
+                    pass
+
+        return link_values_modbus
+
+class ModbusClient(ModbusTcpClient):
+    """This class extends the existing 'ModbusTcpClient' class with additional functionality
+    for reading and writing float values.
     """
-    d = Epanet('test.inp')
-    d.setTimeSimulationDuration(60 * 20)
-    d.setTimeHydraulicStep(60 * 10)
-    
-    try:
-        d.openHydraulicAnalysis()
-        d.initializeHydraulicAnalysis()
+    class ModbusFloatResponse:
+        def __init__(self, floats: list[float]):
+            self.floats = floats
+        
+        def __getitem__(self, index: int):
+            return self.floats[index]
 
-        while True:
-            # This code sets the simulation duration to run infinitely.
-            x = d.getTimeSimulationDuration() + d.getTimeHydraulicStep()
-            d.setTimeSimulationDuration(x)
-            
-            d.runHydraulicAnalysis()
+        def __len__(self):
+            return len(self.floats)
 
-            # tstep = d.runHydraulicAnalysis()
-            # print(tstep, end=' ')
-            
-            # if tstep >= d.getTimeSimulationDuration():
-            #     break 
+    def read_floats(self, address: int, count: int = 1, slave: int = 1):
+        """Read float values from the specified address."""
+        result = self.read_holding_registers(address, count * 2, slave=slave)
+        decoder = BinaryPayloadDecoder.fromRegisters(result.registers, byteorder=Endian.BIG, wordorder=Endian.LITTLE)
+        return self.ModbusFloatResponse([decoder.decode_32bit_float() for _ in range(count)])
 
-            # LOGIC HERE ####################################################################################
+    def write_float(self, address: int, value: float, slave: int = 1):
+        """Write a single float value to the specified address."""
+        builder = BinaryPayloadBuilder(byteorder=Endian.BIG, wordorder=Endian.LITTLE)
+        builder.add_32bit_float(value)
+        registers = builder.to_registers()
+        self.write_registers(address, registers, slave=slave)
 
-            
-
-            # END ###########################################################################################
-
-            d.nextHydraulicAnalysisStep()
-
-            time.sleep(1)  
-
-    except KeyboardInterrupt:
-        print('>--- Program interrupted by user ---')
-    
-    finally:
-        d.closeHydraulicAnalysis()         
-        d.unload()
-
-if __name__ == '__main__':
-    main()
+    def write_floats(self, address: int, values: list[float], slave: int = 1):
+        """Write multiple float values starting from the specified address."""
+        builder = BinaryPayloadBuilder(byteorder=Endian.BIG, wordorder=Endian.LITTLE)
+        for value in values:
+            builder.add_32bit_float(value)
+        registers = builder.to_registers()
+        self.write_registers(address, registers, slave=slave)
