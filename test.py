@@ -5,7 +5,6 @@ class Epanet(epanet):
     """This class extends the existing epanet class with additional functionality.
     """    
     def get_node_values(self):
-        """Test"""
         node_values = {
             name_id: {
                 'type': self.getNodeType(self.getNodeIndex(name_id)),
